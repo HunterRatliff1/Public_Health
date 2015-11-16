@@ -1,0 +1,112 @@
+---
+title: "Hospital Costs"
+author: "Hunter Ratliff"
+date: "October 1, 2015"
+output: 
+  html_document:
+    theme: united
+---
+
+
+```{r global_options, include=FALSE}
+require(knitr)
+
+# setwd("~/Google Drive/100 - Publicly hosted/rootR/Bioinformatics")
+# opts_knit$set(root.dir = "..")
+
+## Sets output for figures
+knitr::opts_chunk$set(fig.width=12, fig.height=8, fig.path='Figures/',
+                      echo=TRUE, warning=FALSE, message=FALSE, fig.align='center')
+```
+
+```{r LOAD | Packs}
+packs = c("magrittr", "dplyr", "reshape2", "ggplot2", "ggmap", "ggthemes", "zipcode", "ggvis")
+sapply(packs, require, character.only=TRUE)  
+
+source("~/Github/Citations/Citation Function.R")
+```
+
+```{r LOAD | Data}
+## Load data from data.gov
+# https://data.cms.gov/Medicare/Inpatient-Prospective-Payment-System-IPPS-Provider/97k6-zzx3
+data_csv <- RSocrata::read.socrata("https://data.cms.gov/resource/97k6-zzx3.csv")
+
+# Geolocate by zipcode
+require("zipcode")
+data(zipcode)
+zips <- clean.zipcodes(data_csv$Provider.Zip.Code)
+```
+
+You can also embed plots, for example:
+
+```{r Build | Data frame}
+# Merge and format data
+df <- merge(data_csv, zipcode, by.x='Provider.Zip.Code', by.y='zip') %>% 
+  select(-Provider.City, -Provider.State, -Provider.Zip.Code) %>%
+  mutate(Average.Covered.Charges   = as.numeric(gsub( "[$,]", "", Average.Covered.Charges)),
+         Average.Total.Payments    = as.numeric(gsub( "[$,]", "", Average.Total.Payments)),
+         Average.Medicare.Payments = as.numeric(gsub( "[$,]", "", Average.Medicare.Payments)),
+         Total.Discharges          = as.numeric(Total.Discharges))
+
+```
+
+
+```{r HospitalCosts01}
+group_by(df, DRG.Definition, state, latitude, longitude) %>% 
+  summarise(discharges = sum(Total.Discharges)) %>%
+  ggplot(aes(x=state, y=DRG.Definition, size=discharges)) + geom_point()
+citation()
+
+```
+
+
+```{r Build | Map object}
+# Make the map object
+require("ggmap")
+map <- get_map(location='texas', zoom=6, maptype = "terrain",
+             source='google',color='bw')
+
+atx <- get_map(location='austin, texas', zoom=8, maptype = "terrain",
+               source='google',color='bw')
+```
+
+```{r HospitalCosts02}
+ggmap(atx) + 
+  geom_point(
+    aes(x=longitude, y=latitude,  size=Total.Discharges, 
+        alpha=Total.Discharges, color=Average.Total.Payments, position="jitter"),
+    data=filter(df, state=="TX", Average.Total.Payments < 40000) , na.rm = T)  + 
+  scale_color_gradient(low="yellow", high="red")
+citation()
+```
+
+More to be added!
+
+***
+# Contact
+
+**Hunter Ratliff**
+
+Email: HunterRatliff1@gmail.com   
+Twitter: @[HunterRatliff1](https://twitter.com/HunterRatliff1)   
+
+```
+Copyright (C) 2015 Hunter Ratliff
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+```
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
